@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>酒店管理系统 - 规范版前端</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <img
+            class="brand-image"
+            src="./assets/hotel.jpg"
+            alt="酒店外观"
+          />
+          <div>
+            <h1>酒店管理系统</h1>
+            <p>API v1 对接前端</p>
+          </div>
+        </div>
+        <nav id="navList" class="nav-list" aria-label="系统导航"></nav>
+        <section class="session-box">
+          <span>接口模式</span>
+          <strong id="apiModeLabel">Mock API</strong>
+          <small id="apiBaseLabel">/api/v1</small>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p id="pageKicker" class="kicker">Dashboard</p>
+            <h2 id="pageTitle">首页总览</h2>
+          </div>
+          <div class="topbar-actions">
+            <div class="account-chip" id="accountChip">未登录</div>
+            <button id="toggleApiMode" class="secondary-button" type="button">切换真实接口</button>
+            <button id="resetMockData" class="secondary-button" type="button">重置 Mock</button>
+          </div>
+        </header>
+
+        <section id="viewRoot" class="view-root" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <div id="toastStack" class="toast-stack" aria-live="assertive"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
