@@ -594,10 +594,22 @@ class HotelRepository(BaseRepository):
             {"room_id": room_id, "room_no": room_no},
         )
 
-    def checkout_by_sp(self, checkin_id: int, cashier_id: int) -> int:
+    def checkout_by_sp(
+        self, checkin_id: int, cashier_id: int, checkout_time: datetime
+    ) -> int:
         self.db.execute(
-            text("CALL sp_checkout(:checkin_id, :cashier_id, @checkout_id)"),
-            {"checkin_id": checkin_id, "cashier_id": cashier_id},
+            text(
+                """
+                CALL sp_checkout(
+                    :checkin_id, :cashier_id, :checkout_time, @checkout_id
+                )
+                """
+            ),
+            {
+                "checkin_id": checkin_id,
+                "cashier_id": cashier_id,
+                "checkout_time": checkout_time,
+            },
         )
         return int(self.scalar("SELECT @checkout_id") or 0)
 

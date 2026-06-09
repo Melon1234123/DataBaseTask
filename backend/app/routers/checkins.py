@@ -102,5 +102,5 @@ def checkout(
     db: Session = Depends(get_db),
     current: AccountPrincipal = Depends(require_roles(ROLE_ADMIN, ROLE_FRONT_DESK)),
 ):
-    data = CheckInService(db).checkout(checkInId, current.account_id)
+    data = CheckInService(db).checkout(checkInId, current.account_id, payload.checkout_time)
     return success(request, data, status_code=201)

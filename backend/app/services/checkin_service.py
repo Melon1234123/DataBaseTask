@@ -102,9 +102,14 @@ class CheckInService:
             )
         return self.get_checkin(checkin_id)
 
-    def checkout(self, checkin_id: int, cashier_id: int) -> dict:
+    def checkout(
+        self, checkin_id: int, cashier_id: int, checkout_time: Optional[datetime]
+    ) -> dict:
+        checkout_time = checkout_time or datetime.now()
+        if checkout_time.tzinfo is not None:
+            checkout_time = checkout_time.replace(tzinfo=None)
         with transactional(self.db):
-            checkout_id = self.repo.checkout_by_sp(checkin_id, cashier_id)
+            checkout_id = self.repo.checkout_by_sp(checkin_id, cashier_id, checkout_time)
         checkout = self.repo.get_checkout(checkout_id)
         if checkout is None:
             raise not_found("结账记录")
