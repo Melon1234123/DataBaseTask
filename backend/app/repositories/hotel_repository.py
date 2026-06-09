@@ -579,6 +579,30 @@ class HotelRepository(BaseRepository):
             {"checkin_id": checkin_id, "new_room_id": new_room_id},
         )
 
+    def checkout_exists(self, checkin_id: int) -> bool:
+        return bool(
+            self.scalar(
+                "SELECT COUNT(*) FROM Checkout WHERE CheckInId = :checkin_id",
+                {"checkin_id": checkin_id},
+            )
+        )
+
+    def delete_checkin(self, checkin_id: int) -> int:
+        return self.execute(
+            "DELETE FROM CheckIn WHERE CheckInId = :checkin_id",
+            {"checkin_id": checkin_id},
+        )
+
+    def set_reservation_status(self, reservation_id: int, reservation_status: str) -> int:
+        return self.execute(
+            """
+            UPDATE Reservation
+            SET ReservationStatus = :reservation_status
+            WHERE ReservationId = :reservation_id
+            """,
+            {"reservation_id": reservation_id, "reservation_status": reservation_status},
+        )
+
     def set_room_status(self, room_id: int, room_status: str) -> int:
         return self.execute(
             "UPDATE Room SET RoomStatus = :room_status WHERE RoomId = :room_id",
@@ -590,8 +614,21 @@ class HotelRepository(BaseRepository):
             """
             INSERT INTO CleaningTask(RoomId, RoomNo, CleanStatus)
             VALUES(:room_id, :room_no, '待清扫')
+            ON DUPLICATE KEY UPDATE
+                RoomNo = VALUES(RoomNo),
+                CleanStatus = '待清扫'
             """,
             {"room_id": room_id, "room_no": room_no},
+        )
+
+    def delete_unfinished_cleaning_tasks_for_room(self, room_id: int) -> int:
+        return self.execute(
+            """
+            DELETE FROM CleaningTask
+            WHERE RoomId = :room_id
+              AND CleanStatus <> '已完成'
+            """,
+            {"room_id": room_id},
         )
 
     def checkout_by_sp(

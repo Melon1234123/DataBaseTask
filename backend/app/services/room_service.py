@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.core.errors import not_found
+from app.core.errors import AppError, not_found
 from app.repositories.hotel_repository import HotelRepository
 from app.services.helpers import transactional
 
@@ -58,10 +58,21 @@ class RoomService:
         return self.get_room(room_id)
 
     def update_room(self, room_id: int, values: dict, operator_id: int) -> dict:
-        self.get_room(room_id)
+        room = self.get_room(room_id)
+        next_status = values.get("room_status")
+        if next_status and room["roomStatus"] == "已入住" and next_status != "已入住":
+            raise AppError(40901, "该房间存在未结账入住订单，请先到入住结账页面完成结账")
         with transactional(self.db):
+            deleted_cleaning_count = 0
+            if room["roomStatus"] == "待清扫" and next_status in ("空闲", "停用"):
+                deleted_cleaning_count = self.repo.delete_unfinished_cleaning_tasks_for_room(
+                    room_id
+                )
             self.repo.update_room(room_id, values)
-            self.repo.try_add_operation_log(operator_id, "客房维护", "修改客房 %s" % room_id)
+            log_detail = "修改客房 %s" % room_id
+            if deleted_cleaning_count:
+                log_detail += "，同步删除未完成清扫任务 %s 个" % deleted_cleaning_count
+            self.repo.try_add_operation_log(operator_id, "客房维护", log_detail)
         return self.get_room(room_id)
 
     def delete_room(self, room_id: int, operator_id: int) -> None:

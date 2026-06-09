@@ -1,4 +1,6 @@
-const API_BASE = "/api/v1";
+const API_BASE = ["", "127.0.0.1:5500", "localhost:5500"].includes(window.location.host)
+  ? "http://127.0.0.1:8000/api/v1"
+  : "/api/v1";
 const TOKEN_KEY = "hotelsys_access_token";
 const ACCOUNT_KEY = "hotelsys_current_account";
 
@@ -22,12 +24,11 @@ const navItems = [
   { id: "reservations", label: "预定管理", kicker: "Reservations", title: "客房预定管理" },
   { id: "checkins", label: "入住结账", kicker: "Check-ins", title: "入住、换房与结账" },
   { id: "cleaning", label: "清扫任务", kicker: "Cleaning", title: "清扫任务管理" },
-  { id: "audit", label: "操作审计", kicker: "Audit", title: "操作日志查询" },
-  { id: "frontendTasks", label: "前端任务", kicker: "Tasks", title: "前端对接任务清单" }
+  { id: "audit", label: "操作审计", kicker: "Audit", title: "操作日志查询" }
 ];
 
 const ROLE_VIEW_ACCESS = {
-  管理员: ["dashboard", "accounts", "customers", "rooms", "reservations", "checkins", "cleaning", "audit", "frontendTasks"],
+  管理员: ["dashboard", "accounts", "customers", "rooms", "reservations", "checkins", "cleaning", "audit"],
   前台工作人员: ["dashboard", "customers", "rooms", "reservations", "checkins", "cleaning"],
   保洁员: ["dashboard", "cleaning"],
   审计员: ["dashboard", "customers", "rooms", "checkins", "audit"]
@@ -87,8 +88,6 @@ function render(options = {}) {
   const nav = navItems.find(item => item.id === activeView) || navItems[0];
   document.getElementById("pageKicker").textContent = nav.kicker;
   document.getElementById("pageTitle").textContent = nav.title;
-  document.getElementById("apiModeLabel").textContent = "真实接口";
-  document.getElementById("apiBaseLabel").textContent = API_BASE;
   document.getElementById("accountChip").textContent = currentAccount
     ? `${currentAccount.accountName} · ${currentAccount.permissionName}`
     : "未登录";
@@ -103,8 +102,7 @@ function render(options = {}) {
     reservations: renderReservations,
     checkins: renderCheckIns,
     cleaning: renderCleaning,
-    audit: renderAudit,
-    frontendTasks: renderFrontendTasks
+    audit: renderAudit
   };
 
   document.getElementById("viewRoot").innerHTML = views[activeView]();
@@ -113,7 +111,7 @@ function render(options = {}) {
   });
   bindEvents();
 
-  if (load && isAuthenticated() && activeView !== "frontendTasks") {
+  if (load && isAuthenticated()) {
     loadCurrentView(activeView);
   }
 }
@@ -375,10 +373,10 @@ function renderDashboard() {
   const revenue = dataStore.checkouts.reduce((sum, item) => sum + Number(item.actualPayAmount), 0);
   return `
     <section class="metrics-grid">
-      ${metric("客户总数", dataStore.customers.length, "Customer")}
-      ${metric("空闲客房", dataStore.rooms.filter(item => item.roomStatus === "空闲").length, "Room.RoomStatus = 空闲")}
-      ${metric("待入住预定", pendingReservations.length, "ReservationStatus = 未入住")}
-      ${metric("待处理清扫", pendingCleaning.length, "CleanStatus != 已完成")}
+      ${metric("客户总数", dataStore.customers.length, "已登记客户")}
+      ${metric("空闲客房", dataStore.rooms.filter(item => item.roomStatus === "空闲").length, "可直接安排入住")}
+      ${metric("待入住预定", pendingReservations.length, "等待客人到店")}
+      ${metric("待处理清扫", pendingCleaning.length, "需要保洁跟进")}
     </section>
 
     <section class="split-layout">
@@ -386,7 +384,7 @@ function renderDashboard() {
         <div class="panel-header">
           <div class="panel-title">
             <h3>房态总览</h3>
-            <p>对应接口 ${apiBadge("GET /rooms/status-overview")}</p>
+            <p>实时查看各类客房占用情况</p>
           </div>
         </div>
         <div class="panel-body">${roomBoard()}</div>
@@ -395,7 +393,7 @@ function renderDashboard() {
         <div class="panel-header">
           <div class="panel-title">
             <h3>运营统计</h3>
-            <p>按规范展示金额和状态枚举</p>
+            <p>汇总房态、订单和营收信息</p>
           </div>
         </div>
         <div class="panel-body">
@@ -403,7 +401,7 @@ function renderDashboard() {
           <article class="metric-card" style="margin-top: 14px; box-shadow: none;">
             <span>结账实收</span>
             <strong>${money(revenue)}</strong>
-            <small>Checkout.ActualPayAmount 汇总</small>
+            <small>已完成结账金额汇总</small>
           </article>
         </div>
       </div>
@@ -413,7 +411,7 @@ function renderDashboard() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>当前在住订单</h3>
-          <p>对应接口 ${apiBadge("GET /check-ins")}</p>
+          <p>正在入住的客人和房间</p>
         </div>
       </div>
       <div class="panel-body">${checkInsTable(activeOrders, false)}</div>
@@ -428,7 +426,7 @@ function renderAuth() {
         <div class="panel-header">
           <div class="panel-title">
             <h3>登录</h3>
-            <p>${apiBadge("POST /auth/login")} 成功后保存 JWT Bearer Token</p>
+            <p>请输入账号和密码进入系统</p>
           </div>
         </div>
         <div class="panel-body">
@@ -439,10 +437,6 @@ function renderAuth() {
               <button class="primary-button" type="submit">登录</button>
             </div>
           </form>
-          <div class="request-preview" style="margin-top: 14px;">
-            <code>Authorization: Bearer &lt;accessToken&gt;</code>
-            <code>Content-Type: application/json</code>
-          </div>
         </div>
       </div>
 
@@ -450,7 +444,7 @@ function renderAuth() {
         <div class="panel-header">
           <div class="panel-title">
             <h3>账号注册</h3>
-            <p>${apiBadge("POST /accounts/register")} 初始状态为 待审核</p>
+            <p>新账号提交后由管理员审核</p>
           </div>
         </div>
         <div class="panel-body">
@@ -475,7 +469,7 @@ function renderAccounts() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>账号列表</h3>
-          <p>${apiBadge("GET /accounts")} ${apiBadge("PATCH /accounts/{accountId}/approval")}</p>
+          <p>管理系统账号和审批状态</p>
         </div>
         <div class="toolbar">
           <select id="approvalFilter">
@@ -496,9 +490,9 @@ function renderCustomers() {
   return `
     ${showCustomerForm ? `<section class="panel">
       <div class="panel-header">
-        <div class="panel-title">
-          <h3>新增客户</h3>
-          <p>${apiBadge("POST /customers")} JSON 字段使用 lowerCamelCase</p>
+          <div class="panel-title">
+            <h3>新增客户</h3>
+            <p>录入客户身份信息和会员折扣</p>
         </div>
       </div>
       <div class="panel-body">
@@ -517,7 +511,7 @@ function renderCustomers() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>${showCustomerForm ? "客户查询" : "客户查询（只读）"}</h3>
-          <p>${apiBadge("GET /customers?cardId=&phone=")}</p>
+          <p>按姓名、身份证或电话快速查找</p>
         </div>
         <div class="toolbar">
           <input id="customerKeyword" type="search" placeholder="姓名 / 身份证 / 电话" />
@@ -538,7 +532,7 @@ function renderRooms() {
         <div class="panel-header">
           <div class="panel-title">
             <h3>新增客房</h3>
-            <p>${apiBadge("POST /rooms")}</p>
+            <p>维护房间基础资料和当前房态</p>
           </div>
         </div>
         <div class="panel-body">
@@ -557,7 +551,7 @@ function renderRooms() {
         <div class="panel-header">
           <div class="panel-title">
             <h3>新增房型</h3>
-            <p>${apiBadge("POST /room-types")}</p>
+            <p>设置房型名称和基础价格</p>
           </div>
         </div>
         <div class="panel-body">
@@ -574,7 +568,7 @@ function renderRooms() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>${showRoomForms ? "客房列表" : "客房列表（只读）"}</h3>
-          <p>${apiBadge("GET /rooms")} ${apiBadge("GET /rooms/available")}</p>
+          <p>查看房间资料、房型和使用状态</p>
         </div>
         <div class="toolbar">
           <select id="roomStatusFilter"><option value="">全部房态</option>${ROOM_STATUSES.map(status => `<option>${status}</option>`).join("")}</select>
@@ -593,7 +587,7 @@ function renderReservations() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>创建预定</h3>
-          <p>${apiBadge("POST /reservations")} 推荐后端调用 sp_create_reservation</p>
+          <p>为客户预留指定日期和房型</p>
         </div>
       </div>
       <div class="panel-body">
@@ -613,7 +607,7 @@ function renderReservations() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>预定列表</h3>
-          <p>${apiBadge("GET /reservations")} ${apiBadge("PATCH /reservations/{reservationId}/cancel")}</p>
+          <p>跟踪待入住、已入住和已取消预定</p>
         </div>
         <div class="toolbar">
           <select id="reservationStatusFilter"><option value="">全部预定状态</option>${RESERVATION_STATUSES.map(status => `<option>${status}</option>`).join("")}</select>
@@ -634,7 +628,7 @@ function renderCheckIns() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>直接入住</h3>
-          <p>${apiBadge("POST /check-ins")} reservationId 为空表示直接入住</p>
+          <p>为到店客户快速办理入住</p>
         </div>
       </div>
       <div class="panel-body">
@@ -653,7 +647,7 @@ function renderCheckIns() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>在住订单</h3>
-          <p>${apiBadge("GET /check-ins")} ${apiBadge("POST /check-ins/{checkInId}/checkout")}</p>
+          <p>处理在住房间的结账和异常订单</p>
         </div>
       </div>
       <div class="panel-body">${checkInsTable(active, true)}</div>
@@ -663,7 +657,7 @@ function renderCheckIns() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>${showCheckInOps ? "结账记录" : "结账记录查询"}</h3>
-          <p>${apiBadge("GET /checkouts")} 数据源 v_checkout_bill</p>
+          <p>查看历史结账明细和实收金额</p>
         </div>
       </div>
       <div class="panel-body">${checkoutsTable(dataStore.checkouts)}</div>
@@ -677,7 +671,7 @@ function renderCleaning() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>清扫任务队列</h3>
-          <p>${apiBadge("GET /cleaning-tasks")} ${apiBadge("POST /cleaning-tasks/{id}/start")} ${apiBadge("POST /cleaning-tasks/{id}/finish")}</p>
+          <p>安排退房后的清扫和复查</p>
         </div>
         <div class="toolbar">
           <select id="cleanStatusFilter"><option value="">全部清扫状态</option>${CLEAN_STATUSES.map(status => `<option>${status}</option>`).join("")}</select>
@@ -696,7 +690,7 @@ function renderAudit() {
       <div class="panel-header">
         <div class="panel-title">
           <h3>操作审计</h3>
-          <p>${apiBadge("GET /operation-logs")} 默认按 operationTime 倒序</p>
+          <p>查看关键业务操作和处理记录</p>
         </div>
         <div class="toolbar">
           <input id="logKeyword" type="search" placeholder="操作类型 / 操作者 / 内容" />
@@ -704,38 +698,6 @@ function renderAudit() {
       </div>
       <div class="panel-body">
         <div id="logsTable">${logsTable(dataStore.operationLogs)}</div>
-      </div>
-    </section>
-  `;
-}
-
-function renderFrontendTasks() {
-  const tasks = [
-    ["遵守接口基准路径", "所有接口从 /api/v1 开始，登录为 POST /auth/login。", "已完成"],
-    ["遵守 JSON 字段命名", "前端字段统一使用 lowerCamelCase，例如 customerId、roomStatus。", "已完成"],
-    ["统一响应处理", "所有请求按 code、message、data、requestId 处理错误和成功。", "已完成"],
-    ["JWT 保存和请求头", "登录后保存 accessToken，后续请求附带 Authorization。", "已完成"],
-    ["状态枚举", "房态、预定状态、订单状态、清扫状态和账号状态只使用规范值。", "已完成"],
-    ["真实接口联调", "页面数据、表单提交和操作按钮全部请求后端接口。", "已完成"]
-  ];
-  return `
-    <section class="panel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <h3>前端对接任务</h3>
-          <p>依据 docs/酒店管理系统对接规范.md 第 10、12、13 节</p>
-        </div>
-      </div>
-      <div class="panel-body">
-        <div class="task-list">
-          ${tasks.map((task, index) => `
-            <article class="task-item">
-              <span class="task-index">${index + 1}</span>
-              <div><h4>${task[0]}</h4><p>${task[1]}</p></div>
-              ${statusPill(task[2])}
-            </article>
-          `).join("")}
-        </div>
       </div>
     </section>
   `;
@@ -868,6 +830,7 @@ function bindReservations() {
       payload.reserveStartTime = toIso(payload.reserveStartTime);
       payload.reserveEndTime = toIso(payload.reserveEndTime);
       if (!validateBusinessTime(payload.reserveStartTime, payload.reserveEndTime)) return toast("创建预定失败", "reserveStartTime 必须早于 reserveEndTime。", "error");
+      if (!isFutureTime(payload.reserveStartTime)) return toast("创建预定失败", "预定入住时间必须晚于当前时间。", "error");
       if (payload.guestCount <= 0) return toast("创建预定失败", "guestCount 必须为正整数。", "error");
       if (!isMoney(payload.prepayAmount)) return toast("创建预定失败", "prepayAmount 必须是非负金额字符串。", "error");
       const response = await request("POST", "/reservations", payload);
@@ -940,6 +903,7 @@ function bindGlobalActions() {
       if (["approve-account", "reject-account", "disable-account"].includes(action) && !canManageAccounts()) return forbidden();
       if (["cancel-reservation", "checkin-reservation"].includes(action) && !canManageReservations()) return forbidden();
       if (action === "checkout" && !canManageCheckIns()) return forbidden();
+      if (action === "delete-checkin" && !canManageCheckIns()) return forbidden();
       if (["start-cleaning", "finish-cleaning"].includes(action) && !canHandleCleaning()) return forbidden();
       if (["set-room-free", "set-room-disabled"].includes(action) && !canManageRooms()) return forbidden();
       if (action === "approve-account") await approveAccount(id, "已启用");
@@ -948,6 +912,7 @@ function bindGlobalActions() {
       if (action === "cancel-reservation") await cancelReservation(id);
       if (action === "checkin-reservation") await checkInReservation(id);
       if (action === "checkout") await checkout(id);
+      if (action === "delete-checkin") await deleteCheckIn(id);
       if (action === "start-cleaning") await updateCleaning(id, "start");
       if (action === "finish-cleaning") await updateCleaning(id, "finish");
       if (action === "set-room-free") await patchRoomStatus(id, "空闲");
@@ -995,6 +960,14 @@ async function checkout(checkInId) {
   await refreshCurrentView();
 }
 
+async function deleteCheckIn(checkInId) {
+  const ok = window.confirm("删除在住订单会恢复房间为空闲；如果这是误删，账务和房态都会受影响。确认删除这个错误在住订单吗？");
+  if (!ok) return;
+  const response = await request("DELETE", `/check-ins/${checkInId}`);
+  if (!handleResponse(response, "错误在住订单已删除")) return;
+  await refreshCurrentView();
+}
+
 async function updateCleaning(cleaningTaskId, verb) {
   const response = await request("POST", `/cleaning-tasks/${cleaningTaskId}/${verb}`, { cleanerId: currentAccount?.accountId });
   if (!handleResponse(response, verb === "start" ? "已开始清扫" : "清扫已完成")) return;
@@ -1002,8 +975,20 @@ async function updateCleaning(cleaningTaskId, verb) {
 }
 
 async function patchRoomStatus(roomId, roomStatus) {
+  const room = dataStore.rooms.find(item => item.roomId === Number(roomId));
+  if (room?.roomStatus === "已入住") {
+    toast("请先结账", "该房间当前有未结账的在住订单，请先到入住结账页面完成结账。", "error");
+    return;
+  }
+  if (room?.roomStatus === "待清扫") {
+    const ok = window.confirm("该客房还未清理，请谨慎操作；即使修改房态，也要注意对应清扫任务。确认继续吗？");
+    if (!ok) return;
+  }
   const response = await request("PATCH", `/rooms/${roomId}`, { roomStatus });
-  if (!handleResponse(response, "房态已更新")) return;
+  const message = room?.roomStatus === "待清扫" && ["空闲", "停用"].includes(roomStatus)
+    ? "房态已更新，未完成清扫任务已同步删除"
+    : "房态已更新";
+  if (!handleResponse(response, message)) return;
   await refreshCurrentView();
 }
 
@@ -1050,10 +1035,6 @@ function handleResponse(response, successMessage, options = {}) {
 
 function metric(label, value, hint) {
   return `<article class="metric-card"><span>${label}</span><strong>${value}</strong><small>${hint}</small></article>`;
-}
-
-function apiBadge(text) {
-  return `<span class="api-badge">${escapeHtml(text)}</span>`;
 }
 
 function field(label, name, type, placeholder) {
@@ -1150,7 +1131,10 @@ function checkInsTable(rows, showActions) {
       money(item.prepayAmount),
       statusPill(item.orderStatus),
       showActions && item.orderStatus === "进行中"
-        ? `<button class="tiny-button" data-action="checkout" data-id="${item.checkInId}" type="button">结账</button>`
+        ? `<div class="row-actions">
+            <button class="tiny-button" data-action="checkout" data-id="${item.checkInId}" type="button">结账</button>
+            <button class="tiny-button danger-button" data-action="delete-checkin" data-id="${item.checkInId}" type="button">删除</button>
+          </div>`
         : "-"
     ])
   );
@@ -1308,7 +1292,11 @@ function customerOptions() {
 
 function availableRoomOptions() {
   if (!dataStore.availableRooms.length) return `<option value="">暂无空闲房间</option>`;
-  return dataStore.availableRooms.map(item => `<option value="${item.roomId}">${item.roomNo} · ${item.roomTypeName || getRoomType(item.roomTypeId).roomTypeName}</option>`).join("");
+  return dataStore.availableRooms.map(item => {
+    const roomType = getRoomType(item.roomTypeId);
+    const price = item.roomPrice ?? roomType.roomPrice;
+    return `<option value="${item.roomId}">${item.roomNo} · ${item.roomTypeName || roomType.roomTypeName} · ${money(price)}</option>`;
+  }).join("");
 }
 
 function getPermission(permissionId) {
@@ -1350,6 +1338,10 @@ function validateCustomer(payload) {
 
 function validateBusinessTime(startTime, endTime) {
   return startTime && endTime && new Date(startTime) < new Date(endTime);
+}
+
+function isFutureTime(value) {
+  return value && new Date(value).getTime() > Date.now();
 }
 
 function isMoney(value) {

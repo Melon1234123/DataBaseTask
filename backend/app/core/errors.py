@@ -46,6 +46,12 @@ def translate_db_error(exc: SQLAlchemyError) -> AppError:
             return AppError(40902, "唯一约束冲突")
         return AppError(40901, message)
 
+    if "ck_checkin_time" in message:
+        return AppError(40002, "结账时间必须晚于入住开始时间")
+    if "ck_reservation_time" in message:
+        return AppError(40002, "预定入住时间必须晚于当前时间，且早于离店时间")
+    if "Check constraint" in message:
+        return AppError(40002, "数据不符合业务约束，请检查时间、状态、人数或金额")
     if any(token in message for token in ("不存在", "not found", "NOT FOUND")):
         return AppError(40401, message)
     if any(token in message for token in ("重复", "Duplicate entry", "唯一")):

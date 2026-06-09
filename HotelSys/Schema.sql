@@ -203,6 +203,10 @@ CREATE TABLE CleaningTask (
     CleanerId INT NULL COMMENT '保洁员ID',
     FinishTime DATETIME NULL COMMENT '完成时间',
     PRIMARY KEY (CleaningTaskId),
+    CONSTRAINT uk_cleaning_one_unfinished_per_room UNIQUE (
+        RoomId,
+        (CASE WHEN CleanStatus <> '已完成' THEN 1 ELSE NULL END)
+    ),
     CONSTRAINT ck_cleaning_status CHECK (CleanStatus IN ('待清扫', '清扫中', '已完成')),
     CONSTRAINT ck_cleaning_deadline CHECK (DeadlineTime IS NULL OR DeadlineTime > TaskCreateTime),
     CONSTRAINT fk_cleaning_room FOREIGN KEY (RoomId)

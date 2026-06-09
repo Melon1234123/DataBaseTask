@@ -64,7 +64,11 @@ BEGIN
     WHERE RoomId = v_room_id;
 
     INSERT INTO CleaningTask(RoomId, RoomNo, TaskCreateTime, DeadlineTime, CleanStatus, CleanerId, FinishTime)
-    VALUES(v_room_id, v_room_no, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), '待清扫', NULL, NULL);
+    VALUES(v_room_id, v_room_no, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), '待清扫', NULL, NULL)
+    ON DUPLICATE KEY UPDATE
+        RoomNo = VALUES(RoomNo),
+        DeadlineTime = VALUES(DeadlineTime),
+        CleanStatus = '待清扫';
 END$$
 
 DELIMITER ;
@@ -109,4 +113,3 @@ BEGIN
 END$$
 
 DELIMITER ;
-

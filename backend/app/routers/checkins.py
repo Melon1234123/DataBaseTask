@@ -77,6 +77,17 @@ def get_checkin(
     return success(request, CheckInService(db).get_checkin(checkInId))
 
 
+@router.delete("/{checkInId}")
+def delete_unchecked_in(
+    request: Request,
+    checkInId: int = Path(gt=0),
+    db: Session = Depends(get_db),
+    current: AccountPrincipal = Depends(require_roles(ROLE_ADMIN, ROLE_FRONT_DESK)),
+):
+    data = CheckInService(db).delete_unchecked_in(checkInId, current.account_id)
+    return success(request, data)
+
+
 @router.post("/{checkInId}/change-room")
 def change_room(
     request: Request,

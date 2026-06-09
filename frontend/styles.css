@@ -111,23 +111,7 @@ button {
   color: #ffffff;
 }
 
-.session-box {
-  display: grid;
-  gap: 4px;
-  margin-top: auto;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 8px;
-}
-
-.session-box span,
-.session-box small {
-  color: rgba(247, 250, 248, 0.66);
-  font-size: 12px;
-}
-
-.sidebar.logged-out .nav-list,
-.sidebar.logged-out .session-box {
+.sidebar.logged-out .nav-list {
   display: none;
 }
 
@@ -357,19 +341,6 @@ button {
   font-size: 13px;
 }
 
-.api-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 4px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #ffffff;
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-}
-
 .table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -522,61 +493,6 @@ tr:last-child td {
   text-align: center;
 }
 
-.request-preview {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfb;
-}
-
-.request-preview code {
-  color: var(--primary-dark);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  word-break: break-all;
-}
-
-.task-list {
-  display: grid;
-  gap: 10px;
-}
-
-.task-item {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.task-index {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--panel-soft);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.task-item h4 {
-  margin: 0 0 3px;
-  font-size: 14px;
-}
-
-.task-item p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .toast-stack {
   position: fixed;
   right: 18px;
@@ -624,10 +540,6 @@ tr:last-child td {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .session-box {
-    display: none;
-  }
-
   .metrics-grid,
   .split-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -667,12 +579,4 @@ tr:last-child td {
     grid-template-columns: 80px minmax(0, 1fr) 64px;
   }
 
-  .task-item {
-    grid-template-columns: 34px minmax(0, 1fr);
-  }
-
-  .task-item .status-pill {
-    grid-column: 2;
-    justify-self: start;
-  }
 }

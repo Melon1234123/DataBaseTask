@@ -31,6 +31,83 @@ def execute_many(cursor, statements):
         cursor.execute(statement)
 
 
+def ensure_cleaning_unique_index(cursor):
+    cursor.execute(
+        """
+        DELETE stale
+        FROM CleaningTask stale
+        JOIN (
+            SELECT CleaningTaskId
+            FROM (
+                SELECT
+                    CleaningTaskId,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY RoomId
+                        ORDER BY
+                            CASE CleanStatus
+                                WHEN '清扫中' THEN 0
+                                WHEN '待清扫' THEN 1
+                                ELSE 2
+                            END,
+                            CleaningTaskId DESC
+                    ) AS row_num
+                FROM CleaningTask
+                WHERE CleanStatus <> '已完成'
+            ) ranked
+            WHERE ranked.row_num > 1
+        ) duplicate_task
+          ON duplicate_task.CleaningTaskId = stale.CleaningTaskId
+        """
+    )
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM information_schema.statistics
+        WHERE table_schema = DATABASE()
+          AND table_name = 'CleaningTask'
+          AND index_name = 'uk_cleaning_one_unfinished_per_room'
+        """
+    )
+    if not cursor.fetchone()[0]:
+        cursor.execute(
+            """
+            CREATE UNIQUE INDEX uk_cleaning_one_unfinished_per_room
+            ON CleaningTask (
+                RoomId,
+                (CASE WHEN CleanStatus <> '已完成' THEN 1 ELSE NULL END)
+            )
+            """
+        )
+
+
+def reconcile_dev_data(cursor):
+    cursor.execute(
+        """
+        UPDATE CheckIn ci
+        JOIN Checkout co ON co.CheckInId = ci.CheckInId
+        SET ci.OrderStatus = '已结束',
+            ci.CheckInEndTime = COALESCE(ci.CheckInEndTime, co.CheckoutTime)
+        WHERE ci.OrderStatus = '进行中'
+        """
+    )
+    cursor.execute(
+        """
+        UPDATE Room r
+        JOIN CheckIn ci ON ci.RoomId = r.RoomId
+        JOIN Checkout co ON co.CheckInId = ci.CheckInId
+        SET r.RoomStatus = '待清扫'
+        WHERE ci.OrderStatus = '已结束'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM CleaningTask ct
+              WHERE ct.RoomId = r.RoomId
+                AND ct.CleanStatus = '已完成'
+                AND ct.FinishTime >= co.CheckoutTime
+          )
+        """
+    )
+
+
 def create_schema(cursor):
     execute_many(
         cursor,
@@ -271,6 +348,10 @@ def create_schema(cursor):
                 CleanerId INT NULL,
                 FinishTime DATETIME NULL,
                 PRIMARY KEY (CleaningTaskId),
+                UNIQUE KEY uk_cleaning_one_unfinished_per_room (
+                    RoomId,
+                    (CASE WHEN CleanStatus <> '已完成' THEN 1 ELSE NULL END)
+                ),
                 KEY idx_cleaning_status_deadline (CleanStatus, DeadlineTime),
                 KEY idx_cleaning_cleaner_status (CleanerId, CleanStatus),
                 CONSTRAINT fk_cleaning_room FOREIGN KEY (RoomId)
@@ -426,10 +507,18 @@ def seed_data(cursor):
                 CustomerId = VALUES(CustomerId),
                 RoomId = VALUES(RoomId),
                 CheckInStartTime = VALUES(CheckInStartTime),
-                CheckInEndTime = VALUES(CheckInEndTime),
+                CheckInEndTime = IF(
+                    EXISTS(SELECT 1 FROM Checkout WHERE Checkout.CheckInId = CheckIn.CheckInId),
+                    CheckIn.CheckInEndTime,
+                    VALUES(CheckInEndTime)
+                ),
                 GuestCount = VALUES(GuestCount),
                 PrepayAmount = VALUES(PrepayAmount),
-                OrderStatus = VALUES(OrderStatus),
+                OrderStatus = IF(
+                    EXISTS(SELECT 1 FROM Checkout WHERE Checkout.CheckInId = CheckIn.CheckInId),
+                    CheckIn.OrderStatus,
+                    VALUES(OrderStatus)
+                ),
                 OperatorId = VALUES(OperatorId)
             """,
             """
@@ -658,6 +747,7 @@ def create_views_and_routines(cursor):
             CREATE PROCEDURE sp_checkout(
                 IN p_checkin_id INT,
                 IN p_cashier_id INT,
+                IN p_checkout_time DATETIME,
                 OUT p_checkout_id INT
             )
             BEGIN
@@ -678,7 +768,7 @@ def create_views_and_routines(cursor):
                 SELECT
                     ci.CustomerId, ci.RoomId, r.RoomNo, rt.RoomPrice,
                     d.DiscountRate, ci.PrepayAmount, ci.CheckInStartTime,
-                    COALESCE(ci.CheckInEndTime, NOW()), ci.OrderStatus
+                    COALESCE(ci.CheckInEndTime, p_checkout_time), ci.OrderStatus
                 INTO
                     v_customer_id, v_room_id, v_room_no, v_room_price,
                     v_discount_rate, v_prepay, v_start, v_end, v_status
@@ -692,6 +782,12 @@ def create_views_and_routines(cursor):
 
                 IF COALESCE(v_status, '') <> '进行中' THEN
                     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '只有进行中的入住订单可以结账';
+                END IF;
+                IF v_start > p_checkout_time THEN
+                    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '结账时间不能早于入住开始时间';
+                END IF;
+                IF v_start = p_checkout_time THEN
+                    SET p_checkout_time = DATE_ADD(v_start, INTERVAL 1 SECOND);
                 END IF;
 
                 SET v_days = GREATEST(1, CEIL(TIMESTAMPDIFF(SECOND, v_start, v_end) / 86400));
@@ -707,7 +803,7 @@ def create_views_and_routines(cursor):
                 VALUES(
                     p_checkin_id, v_customer_id, v_room_no, v_original,
                     v_discount_rate, v_discount_amount, v_prepay,
-                    v_actual, NOW(), p_cashier_id
+                    v_actual, p_checkout_time, p_cashier_id
                 );
                 SET p_checkout_id = LAST_INSERT_ID();
                 CALL sp_add_operation_log(
@@ -821,7 +917,11 @@ def create_views_and_routines(cursor):
                 UPDATE Room SET RoomStatus = '待清扫'
                 WHERE RoomId = v_room_id;
                 INSERT INTO CleaningTask(RoomId, RoomNo, TaskCreateTime, DeadlineTime, CleanStatus)
-                VALUES(v_room_id, v_room_no, NEW.CheckoutTime, DATE_ADD(NEW.CheckoutTime, INTERVAL 4 HOUR), '待清扫');
+                VALUES(v_room_id, v_room_no, NEW.CheckoutTime, DATE_ADD(NEW.CheckoutTime, INTERVAL 4 HOUR), '待清扫')
+                ON DUPLICATE KEY UPDATE
+                    RoomNo = VALUES(RoomNo),
+                    DeadlineTime = VALUES(DeadlineTime),
+                    CleanStatus = '待清扫';
             END
             """,
             """
@@ -879,6 +979,8 @@ def main():
         with db_conn.cursor() as cursor:
             create_schema(cursor)
             seed_data(cursor)
+            reconcile_dev_data(cursor)
+            ensure_cleaning_unique_index(cursor)
             create_views_and_routines(cursor)
             cursor.execute("SHOW TABLES")
             tables = [row[0] for row in cursor.fetchall()]

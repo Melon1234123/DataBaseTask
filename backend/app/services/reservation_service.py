@@ -24,6 +24,16 @@ class ReservationService:
         guest_count: int,
         prepay: Decimal,
     ) -> dict:
+        now = datetime.now(start_time.tzinfo) if start_time.tzinfo else datetime.now()
+        if start_time <= now:
+            raise AppError(40002, "预定入住时间必须晚于当前时间")
+        if start_time >= end_time:
+            raise AppError(40002, "预定入住时间必须早于离店时间")
+        if start_time.tzinfo is not None:
+            start_time = start_time.replace(tzinfo=None)
+        if end_time.tzinfo is not None:
+            end_time = end_time.replace(tzinfo=None)
+
         with transactional(self.db):
             reservation_id = self.repo.create_reservation_by_sp(
                 customer_id,

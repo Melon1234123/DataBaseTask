@@ -252,6 +252,9 @@ BEGIN
     IF v_start > p_checkout_time THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '结账时间不能早于入住开始时间';
     END IF;
+    IF v_start = p_checkout_time THEN
+        SET p_checkout_time = DATE_ADD(v_start, INTERVAL 1 SECOND);
+    END IF;
 
     SET v_days = GREATEST(DATEDIFF(v_end, v_start), 1);
     SET v_original = v_days * v_room_price;
@@ -508,7 +511,11 @@ BEGIN
         '待清扫',
         NULL,
         NULL
-    );
+    )
+    ON DUPLICATE KEY UPDATE
+        RoomNo = VALUES(RoomNo),
+        DeadlineTime = VALUES(DeadlineTime),
+        CleanStatus = '待清扫';
 
     -- 7. 写操作日志
     CALL sp_add_operation_log(

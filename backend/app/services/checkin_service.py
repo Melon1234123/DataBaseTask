@@ -114,3 +114,35 @@ class CheckInService:
         if checkout is None:
             raise not_found("结账记录")
         return checkout
+
+    def delete_unchecked_in(self, checkin_id: int, operator_id: int) -> dict:
+        with transactional(self.db):
+            checkin = self.repo.lock_checkin(checkin_id)
+            if checkin is None:
+                raise not_found("入住订单")
+            if checkin["orderStatus"] != "进行中":
+                raise AppError(40901, "只能删除未结账的在住订单")
+            if self.repo.checkout_exists(checkin_id):
+                raise AppError(40901, "该入住订单已有结账记录，不能删除")
+
+            room = self.repo.lock_room(checkin["roomId"])
+            if room is None:
+                raise not_found("客房")
+
+            self.repo.delete_checkin(checkin_id)
+            self.repo.set_room_status(room["roomId"], "空闲")
+            if checkin.get("reservationId"):
+                self.repo.set_reservation_status(checkin["reservationId"], "未入住")
+            self.repo.try_add_operation_log(
+                operator_id,
+                "办理入住",
+                "删除错误入住订单 %s，房间 %s 已恢复空闲"
+                % (checkin_id, room["roomNo"]),
+            )
+
+        return {
+            "checkInId": checkin_id,
+            "deleted": True,
+            "roomId": room["roomId"],
+            "roomStatus": "空闲",
+        }
