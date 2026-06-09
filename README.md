@@ -7,7 +7,8 @@
 ```text
 docs/                    需求分析、概念/逻辑设计、物理设计和接口规范
 HotelSys/                数据库组提供的建表、种子数据、索引、视图、过程和触发器 SQL
-hotel-frontend-minimal/  前端最小实现，支持 Mock API 和真实 /api/v1 后端
+frontend/                真实 /api/v1 接口前端
+hotel-frontend-minimal/  前端最小提交副本
 backend/                 FastAPI 后端，连接 MySQL HotelSys
 ```
 
@@ -93,9 +94,8 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ### 6. 前后端联调
 
 1. 打开 http://127.0.0.1:8000/。
-2. 在前端页面切换到真实 API 模式，不要使用 Mock API。
-3. 用数据库里已启用的账号登录。
-4. 按业务流程测试客户、房型、房间、预定、入住、结账、清扫、审计等功能。
+2. 用数据库里已启用的账号登录。
+3. 按业务流程测试客户、房型、房间、预定、入住、结账、清扫、审计等功能。
 
 本地开发脚本默认演示账号：
 

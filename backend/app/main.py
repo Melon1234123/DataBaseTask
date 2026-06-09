@@ -98,6 +98,10 @@ app.include_router(checkouts.router, prefix=settings.api_v1_prefix)
 app.include_router(cleaning.router, prefix=settings.api_v1_prefix)
 app.include_router(audit.router, prefix=settings.api_v1_prefix)
 
-frontend_dir = Path(__file__).resolve().parents[2] / "hotel-frontend-minimal"
-if frontend_dir.exists():
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+project_root = Path(__file__).resolve().parents[2]
+frontend_dir = project_root / "frontend"
+legacy_frontend_dir = project_root / "hotel-frontend-minimal"
+static_frontend_dir = frontend_dir if frontend_dir.exists() else legacy_frontend_dir
+
+if static_frontend_dir.exists():
+    app.mount("/", StaticFiles(directory=static_frontend_dir, html=True), name="frontend")

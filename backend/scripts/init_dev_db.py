@@ -437,7 +437,7 @@ def seed_data(cursor):
                 CleaningTaskId, RoomId, RoomNo, DeadlineTime,
                 CleanStatus, CleanerId, FinishTime
             ) VALUES (
-                6001, 2004, '202', '2026-06-08 18:00:00',
+                6001, 2004, '202', DATE_ADD(NOW(), INTERVAL 4 HOUR),
                 '待清扫', 3, NULL
             )
             ON DUPLICATE KEY UPDATE
@@ -450,7 +450,7 @@ def seed_data(cursor):
             """,
             """
             INSERT INTO OperationLog(OperationLogId, OperatorId, OperationTypeId, OperationInfo, OperationTime)
-            VALUES (1, 1, 10, '加载规范版前端 Mock 数据对应的开发数据库种子数据', '2026-06-08 13:50:00')
+            VALUES (1, 1, 10, '加载真实接口前端对应的开发数据库种子数据', NOW())
             ON DUPLICATE KEY UPDATE
                 OperatorId = VALUES(OperatorId),
                 OperationTypeId = VALUES(OperationTypeId),
