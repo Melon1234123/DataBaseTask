@@ -30,7 +30,13 @@ async def request_id_middleware(request: Request, call_next):
     request.state.request_id = request.headers.get("X-Request-Id") or new_request_id()
     response = await call_next(request)
     response.headers["X-Request-Id"] = request.state.request_id
+    if _is_frontend_asset(request.url.path):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
+
+
+def _is_frontend_asset(path: str) -> bool:
+    return path in {"/", "/index.html"} or path.endswith((".js", ".css"))
 
 
 @app.exception_handler(AppError)
